@@ -1,3 +1,5 @@
+#pragma once
+
 /*
  * drakeUtil.h
  *
@@ -6,42 +8,46 @@
  */
 
 #include <stdexcept>
-#include <vector>
 #include <utility>
+#include <vector>
+
 #include <Eigen/Core>
-#include <unordered_map>
+#include <Eigen/Dense>
 
-#ifndef DRAKE_UTIL_H_
-#define DRAKE_UTIL_H_
+#include "drake/common/drake_assert.h"
+#include "drake/common/drake_deprecated.h"
+#include "drake/common/eigen_stl_types.h"
 
-#undef DLLEXPORT
-#if defined(WIN32) || defined(WIN64)
-  #if defined(drakeUtil_EXPORTS)
-    #define DLLEXPORT __declspec( dllexport )
-  #else
-    #define DLLEXPORT __declspec( dllimport )
-  #endif
-#else
-    #define DLLEXPORT
-#endif
+// TODO(siyuan.feng): Cleanup the naming according to the style guide.
 
 template <typename Key, typename T>
-using eigen_aligned_unordered_map = std::unordered_map<Key, T, std::hash<Key>, std::equal_to<Key>, Eigen::aligned_allocator<std::pair<Key const, T > > >;
+using eigen_aligned_unordered_map
+DRAKE_DEPRECATED("Use drake::eigen_aligned_std_unordered_map")
+    = drake::eigen_aligned_std_unordered_map<Key, T>;
 
 template <typename Derived>
-inline void sizecheck(const Eigen::MatrixBase<Derived>& mat, size_t rows, size_t cols){
+inline void sizecheck(const Eigen::MatrixBase<Derived>& mat, size_t rows,
+                      size_t cols) {
   if ((mat.rows() != rows) || (mat.cols() != cols))
-    throw std::runtime_error("Wrong-sized matrix:  Expected " + std::to_string(rows) + "-by-" + std::to_string(cols) + " but got " + std::to_string(mat.rows()) + "-by-" + std::to_string(mat.cols()));
+    throw std::runtime_error(
+        "Wrong-sized matrix:  Expected " + std::to_string(rows) + "-by-" +
+        std::to_string(cols) + " but got " + std::to_string(mat.rows()) +
+        "-by-" + std::to_string(mat.cols()));
 }
 
-// note for if/when we split off all Matlab related stuff into a different file: this function is not Matlab related
-// can only be used when the dimension information of the array is known at compile time
+// note for if/when we split off all Matlab related stuff into a different file:
+// this function is not Matlab related
+// can only be used when the dimension information of the array is known at
+// compile time
 template <size_t Rows, size_t Cols, typename Derived>
-void eigenToCArrayOfArrays(const Eigen::MatrixBase<Derived>& source, double (&destination)[Rows][Cols]) {
+void eigenToCArrayOfArrays(const Eigen::MatrixBase<Derived>& source,
+                           double (&destination)[Rows][Cols]) {
   if (Rows != source.rows())
-    throw std::runtime_error("Number of rows of source doesn't match destination");
+    throw std::runtime_error(
+        "Number of rows of source doesn't match destination");
   if (Cols != source.cols())
-    throw std::runtime_error("Number of columns of source doesn't match destination");
+    throw std::runtime_error(
+        "Number of columns of source doesn't match destination");
   for (size_t row = 0; row < Rows; ++row) {
     for (size_t col = 0; col < Cols; ++col) {
       destination[row][col] = source(row, col);
@@ -49,60 +55,155 @@ void eigenToCArrayOfArrays(const Eigen::MatrixBase<Derived>& source, double (&de
   }
 }
 
-// note for if/when we split off all Matlab related stuff into a different file: this function is not Matlab related
-// can only be used when the dimension information of the array is known at compile time
-template <size_t Size, typename Derived>
-void eigenVectorToCArray(const Eigen::MatrixBase<Derived>& source, double (&destination)[Size]) {
+// note for if/when we split off all Matlab related stuff into a different file:
+// this function is not Matlab related
+/**
+ * Copies the elements of a (row or column) Eigen vector to an array.
+ *
+ * Can only be used when the dimension information of the array is known at
+ * compile time.
+ * Note that the scalar type of @p source need not match the scalar type of @p
+ * destination (@p DestScalar). A static_cast will be performed to convert to
+ * elements of @p source to @p DestScalar.
+ *
+ * @param[in] source Eigen vector source
+ * @param[out] destination std::vector destination
+ */
+template <typename DestScalar, size_t Size, typename Derived>
+void eigenVectorToCArray(const Eigen::MatrixBase<Derived>& source,
+                         DestScalar (&destination)[Size]) {
+  DRAKE_ASSERT(source.rows() == 1 || source.cols() == 1);
   if (Size != source.size())
     throw std::runtime_error("Size of source doesn't match destination");
   for (size_t i = 0; i < Size; ++i) {
-    destination[i] = source(i);
+    destination[i] = static_cast<DestScalar>(source(i));
   }
 }
 
-// note for if/when we split off all Matlab related stuff into a different file: this function is not Matlab related
-template <typename Derived>
-void eigenVectorToStdVector(const Eigen::MatrixBase<Derived>& source, std::vector<typename Derived::Scalar>& destination) {
-  assert(source.rows() == 1 || source.cols() == 1);
+/**
+ * Copies the elements of a C array to an Eigen vector (row or column).
+ * This function does not resize @p destination, and will throw an exception
+ * if dimension mismatches.
+ *
+ * @param[in] source Fixed sized C array.
+ * @param[out] destination Eigen vector
+ */
+template <typename SourceScalar, size_t Size, typename Derived>
+void cArrayToEigenVector(const SourceScalar (&source)[Size],
+                         Eigen::MatrixBase<Derived>& destination) {
+  DRAKE_ASSERT(destination.rows() == 1 || destination.cols() == 1);
+  if (Size != destination.size())
+    throw std::runtime_error("Size of source doesn't match destination");
+  for (size_t i = 0; i < Size; ++i) {
+    destination(i) = static_cast<typename Derived::Scalar>(source[i]);
+  }
+}
+
+// note for if/when we split off all Matlab related stuff into a different file:
+// this function is not Matlab related
+/**
+ * Copies the elements of a (row or column) Eigen vector to a std::vector.
+ *
+ * Note that the scalar type of @p source need not match the scalar type of @p
+ * destination (@p DestScalar). A static_cast will be performed to convert to
+ * elements of @p source to @p DestScalar.
+ *
+ * @param[in] source Eigen vector source
+ * @param[out] destination std::vector destination
+ */
+template <typename DestScalar, typename Derived>
+void eigenVectorToStdVector(const Eigen::MatrixBase<Derived>& source,
+                            std::vector<DestScalar>& destination) {
+  DRAKE_ASSERT(source.rows() == 1 || source.cols() == 1);
   destination.resize(static_cast<size_t>(source.size()));
-  for (Eigen::DenseIndex i = 0; i < source.size(); i++) {
-    destination[static_cast<size_t>(i)] = source(i);
+  for (Eigen::Index i = 0; i < source.size(); i++) {
+    destination[static_cast<size_t>(i)] = static_cast<DestScalar>(source(i));
   }
 }
 
-// note for if/when we split off all Matlab related stuff into a different file: this function is not Matlab related
-template <typename Derived>
-void eigenToStdVectorOfStdVectors(const Eigen::MatrixBase<Derived>& source, std::vector< std::vector<typename Derived::Scalar> >& destination) {
+/**
+ * Copies the elements of a std::vector to a (row or column) Eigen vector.
+ * This function does not resize @p destination, and will throw an exception
+ * if dimension mismatches.
+ *
+ * @param[in] source std vector.
+ * @param[out] destination Eigen vector.
+ */
+template <typename SourceScalar, typename Derived>
+void stdVectorToEigenVector(const std::vector<SourceScalar>& source,
+                            Eigen::MatrixBase<Derived>& destination) {
+  DRAKE_ASSERT(destination.rows() == 1 || destination.cols() == 1);
+  if (static_cast<size_t>(destination.size()) != source.size())
+    throw std::runtime_error("Size of source doesn't match destination");
+  for (size_t i = 0; i < source.size(); ++i) {
+    destination(i) = static_cast<typename Derived::Scalar>(source[i]);
+  }
+}
+
+// note for if/when we split off all Matlab related stuff into a different file:
+// this function is not Matlab related
+/**
+ * Copies the elements of an Eigen Matrix to a std vector of std vectors,
+ * s.t. @p destination[i][j] = @p source(i, j).
+ * This function resizes @p destination.
+ *
+ * @param[in] source Eigen matrix
+ * @param[out] destination std vector of std vectors
+ */
+template <typename DestScalar, typename Derived>
+void eigenToStdVectorOfStdVectors(
+    const Eigen::MatrixBase<Derived>& source,
+    std::vector<std::vector<DestScalar>>& destination) {
   destination.resize(source.rows());
-  for (Eigen::DenseIndex row = 0; row < source.rows(); ++row) {
+  for (Eigen::Index row = 0; row < source.rows(); ++row) {
     auto& destination_row = destination[row];
     destination_row.resize(source.cols());
-    for (Eigen::DenseIndex col = 0; col < source.cols(); ++col) {
-      destination_row[col] = source(row, col);
+    for (Eigen::Index col = 0; col < source.cols(); ++col) {
+      destination_row[col] = static_cast<DestScalar>(source(row, col));
     }
   }
 }
 
-
-
-template <typename T>
-void addOffset(std::vector<T>& v, const T& offset)
-{
-  std::transform(v.begin(), v.end(), v.begin(), std::bind2nd(std::plus<double>(), offset));
+/**
+ * Copies the elements of a std vector of std vectors to an Eigen Matrix,
+ * s.t. @p destination(i, j) = @p source[i][j].
+ * This function does not resize @p destination, and will throw an exception if
+ * dimension mismatches.
+ *
+ * @param[in] source std vector of std vectors
+ * @param[out] destination Eigen matrix
+ */
+template <typename SourceScalar, typename Derived>
+void stdVectorOfStdVectorsToEigen(
+    const std::vector<std::vector<SourceScalar>>& source,
+    Eigen::MatrixBase<Derived>& destination) {
+  if (source.size() != static_cast<size_t>(destination.rows()))
+    throw std::runtime_error("Size of source doesn't match destination");
+  for (size_t row = 0; row < source.size(); ++row) {
+    if (source[row].size() != static_cast<size_t>(destination.cols()))
+      throw std::runtime_error("Size of source doesn't match destination");
+    for (size_t col = 0; col < source[row].size(); ++col) {
+      destination(row, col) =
+        static_cast<typename Derived::Scalar>(source[row][col]);
+    }
+  }
 }
 
-DLLEXPORT void baseZeroToBaseOne(std::vector<int>& vec);
+template <typename T>
+void addOffset(std::vector<T>& v, const T& offset) {
+  std::transform(v.begin(), v.end(), v.begin(),
+                 std::bind2nd(std::plus<double>(), offset));
+}
 
-DLLEXPORT double angleAverage(double theta1, double theta2);
+void baseZeroToBaseOne(std::vector<int>& vec);
 
-template <typename DerivedTorque, typename DerivedForce, typename DerivedNormal, typename DerivedPoint>
-DLLEXPORT std::pair<Eigen::Vector3d, double> resolveCenterOfPressure(const Eigen::MatrixBase<DerivedTorque> & torque, const Eigen::MatrixBase<DerivedForce> & force, const Eigen::MatrixBase<DerivedNormal> & normal, const Eigen::MatrixBase<DerivedPoint> & point_on_contact_plane);
+double angleAverage(double theta1, double theta2);
 
+template <typename DerivedTorque, typename DerivedForce, typename DerivedNormal,
+          typename DerivedPoint>
+std::pair<Eigen::Vector3d, double> resolveCenterOfPressure(
+    const Eigen::MatrixBase<DerivedTorque>& torque,
+    const Eigen::MatrixBase<DerivedForce>& force,
+    const Eigen::MatrixBase<DerivedNormal>& normal,
+    const Eigen::MatrixBase<DerivedPoint>& point_on_contact_plane);
 
-template <typename DerivedA, typename DerivedB, typename DerivedQ, typename DerivedR, typename DerivedX>
-DLLEXPORT void care(Eigen::MatrixBase<DerivedA> const& A, Eigen::MatrixBase<DerivedB> const& B, Eigen::MatrixBase<DerivedQ> const& Q, Eigen::MatrixBase<DerivedR> const& R, Eigen::MatrixBase<DerivedX> & X);
-
-template <typename DerivedA, typename DerivedB, typename DerivedQ, typename DerivedR, typename DerivedK, typename DerivedS>
-DLLEXPORT void lqr(Eigen::MatrixBase<DerivedA> const& A, Eigen::MatrixBase<DerivedB> const& B, Eigen::MatrixBase<DerivedQ> const& Q, Eigen::MatrixBase<DerivedR> const& R, Eigen::MatrixBase<DerivedK> & K, Eigen::MatrixBase<DerivedS> & S);
-
-#endif /* DRAKE_UTIL_H_ */

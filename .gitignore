@@ -19,12 +19,12 @@
 *.nav
 *~
 uname.err
-externals/*
 !externals/install_prereqs.sh
-drake/cmake
 drake/util/drake_config.mat
 drake/doc/derivations/elib.bib
 drake/.python
+drake/examples/Quadrotor/funLib.mat
+drake/examples/Quadrotor/trajectoryLibrary.mat
 fort.*
 *.aux
 .drake_unit_test_mutex.mat
@@ -46,6 +46,7 @@ drake.jar
 *.out
 pod-build
 build
+cmake-build-*
 mlint_output.html
 .#*
 VALGRIND_OUTPUT.xml
@@ -55,3 +56,6 @@ results_testRunning.mat
 drake/doc/DoxygenCPP
 *.bak
 Pendulum.pmd
+drake/doc/_build
+bazel-*
+xcode
